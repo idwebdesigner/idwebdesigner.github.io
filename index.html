@@ -156,7 +156,7 @@
       (error) => {
         console.warn("GPS Error:", error.message);
         map.setView(defaultLocation, 13);
-        showToast("Gagal akses GPS. Klik manual pada peta.");
+        showToast("Klik peta untuk mendapatkan lokasi GPS.");
       },
       {
         enableHighAccuracy: true, 
