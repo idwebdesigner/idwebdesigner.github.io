@@ -36,6 +36,7 @@
       border-color: #ffffff;
         background-color: #000000;
       padding: 12px;
+      text-align: left;
       border-radius: 8px;
       font-weight: bold;
       cursor: pointer;
@@ -72,19 +73,21 @@
 
 <div id="instruction-modal">
   <div class="modal-content">
-    <p style="font-size: 0.85rem; color: #FFFFFF; margin-top:40px;">Sebelum mengubah lokasi...</p>
-    <h2 style="color: #FFFFFF;">Pastikan anda sudah mengaktifkan mode pengembang dan memilih Zimbabwe di bagian aplikasi lokasi palsu</h2>
-    <p style="font-size: 0.85rem; color: #FFFFFF; margin-top:40px;">Pastikan langkah berikut sudah dilakukan:</p>
+    
+    <h2 style="color: #FFFFFF;">Make sure you have enabled Developer Mode and selected Zimbabwe in the Mock location app section.</h2>
+    <p style="font-size: 0.85rem; color: #FFFFFF; margin-top:0px;">Pastikan anda sudah mengaktifkan mode pengembang dan memilih Zimbabwe di bagian aplikasi lokasi palsu.</p>
     <ol style="color: #FFFFFF;">
       
-      <li>Buka <b>Pengaturan</b> > <b>Tentang Ponsel</b>.</li>
-      <li>Ketuk <b>Build Number</b> (Nomor Versi) sebanyak 7x hingga muncul pesan "Mode Pengembang Aktif".</li>
-      <li>Buka <b>Opsi Pengembang</b> (Developer Options).</li>
-      <li>Cari menu <b>"Pilih aplikasi lokasi palsu"</b> (Select mock location app).</li>
-      <li>Pilih aplikasi GPS Zimbabwe</li>
+      <li>Open <b>Setting</b> (Pengaturan) > <b>About Phone</b> (Tentang Ponsel).</li>
+      <li>Tap <b>Build Number</b> (Nomor Versi) 7x hingga muncul pesan <b>Developer Mode Active</b> (Mode Pengembang Aktif).</li>
+      <li>Open <b>Developer Options</b> (Opsi Pengembang).</li>
+      <li>Find <b>"Select mock location app"</b> (Pilih aplikasi lokasi palsu).</li>
+      <li>Pilih Zimbabwe GPS Dev</li>
     </ol>
-    <button class="btn-start" onclick="closeModal()">DAPATKAN LOKASI GPS DI PETA</button>
+    <button class="btn-start" onclick="closeModal()">Get Your (lat, lon) Location<p style="font-size: 0.5rem; color: #FFFFFF; margin-top:4px;">احصل على موقعك (خط العرض، خط الطول)</p>
+    <p style="font-size: 0.5rem; color: #FFFFFF; margin-top:-4px; margin-bottom:0px;">获取您的（纬度，经度）位置</p></button>
   </div>
+  
 </div>
 
 <div id="map"></div>
@@ -135,7 +138,7 @@
       marker = L.marker(pos).addTo(map);
     }
     if (moveMap) map.setView(pos, 16);
-    marker.bindPopup(`<b>Your Location:</b><br><h2>${lat.toFixed(6)}, ${lng.toFixed(6)}</h2><br>Add the above number to change the location<br>أضف الأرقام أعلاه لتغيير الموقع<br>Tambahkan angka diatas untuk mengubah lokasi<br>将以上数字相加即可更改位置<br>tambahake nomer ing ndhuwur kanggo ngganti papan`).openPopup();
+    marker.bindPopup(`<b>Your Location:</b><br><h2>${lat.toFixed(6)}, ${lng.toFixed(6)}</h2><br>Add the above number to change the location<br>أضف الأرقام أعلاه لتغيير الموقع<br>Tambahkan angka diatas untuk ubah lokasi<br>将以上数字相加即可更改位置<br>Tambahake nomer ing ndhuwur...`).openPopup();
   }
 
   function getLocation() {
