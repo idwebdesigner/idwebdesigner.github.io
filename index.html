@@ -135,7 +135,7 @@
       marker = L.marker(pos).addTo(map);
     }
     if (moveMap) map.setView(pos, 16);
-    marker.bindPopup(`<b>Your Location:</b><br>${lat.toFixed(6)}, ${lng.toFixed(6)}`).openPopup()<br>Copy ke Zimbabwe;
+    marker.bindPopup(`<b>Your Location:</b><br>${lat.toFixed(6)}, ${lng.toFixed(6)}<br>Copy ke Zimbabwe`).openPopup();
   }
 
   function getLocation() {
