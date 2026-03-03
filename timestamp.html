@@ -36,7 +36,7 @@
             <img id="image-preview" class="hidden w-full h-full object-contain bg-slate-200" alt="Preview Unggahan" />
             
             <!-- Floating Overlay View (Preview Only) -->
-            <div class="absolute bottom-4 left-4 text-white text-[10px] leading-tight pointer-events-none drop-shadow-md bg-black/20 p-2 rounded">
+            <div class="absolute bottom-4 left-4 text-white text-[10px] leading-tight pointer-events-none drop-shadow-md bg-black/20 p-2 rounded max-w-[80%]">
                 <div id="display-time" class="font-bold">Memuat waktu...</div>
                 <div id="display-address">Mencari lokasi...</div>
                 <div id="display-coords" class="opacity-80 text-[8px]"></div>
@@ -56,7 +56,15 @@
             <input type="datetime-local" id="input-datetime" class="custom-input px-3 py-2 w-full mb-3" />
 
             <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Alamat / Label Lokasi</label>
-            <input type="text" id="input-address" placeholder="Masukkan alamat manual..." class="custom-input mb-3" />
+            <div class="relative">
+                <input type="text" id="input-address" placeholder="Mencari alamat otomatis..." class="custom-input mb-3 pr-10" />
+                <div id="address-loader" class="hidden absolute right-3 top-2.5">
+                    <svg class="animate-spin h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+            </div>
 
             <div class="grid grid-cols-2 gap-2">
                 <div>
@@ -68,7 +76,7 @@
                     <input type="number" id="input-lng" step="any" class="custom-input" />
                 </div>
             </div>
-            <p class="text-[10px] text-slate-400 italic mt-1">*Klik pada peta di bawah untuk mengubah koordinat dengan cepat.</p>
+            <p class="text-[10px] text-slate-400 italic mt-1">*Alamat diisi otomatis saat lokasi berubah. Anda tetap bisa mengeditnya secara manual.</p>
         </div>
 
         <!-- Map View -->
@@ -79,14 +87,12 @@
 
         <!-- Bottom Navigation / Controls -->
         <div class="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-200 p-6 flex justify-around items-center z-40">
-            <!-- Switch Camera -->
             <button id="btn-switch" class="p-3 text-slate-500 hover:text-indigo-600 transition">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
             </button>
             
-            <!-- Main Capture Button -->
             <button id="btn-capture" class="bg-indigo-600 text-white p-5 rounded-full shadow-lg shadow-indigo-200 hover:scale-105 active:scale-95 transition transform">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -94,7 +100,6 @@
                 </svg>
             </button>
 
-            <!-- Upload Gallery -->
             <label for="input-file" class="p-3 text-slate-500 hover:text-indigo-600 cursor-pointer transition">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -130,6 +135,7 @@
         const btnSwitch = document.getElementById('btn-switch');
         const inputFile = document.getElementById('input-file');
         const modeIndicator = document.getElementById('mode-indicator');
+        const addressLoader = document.getElementById('address-loader');
         
         // Input Controls
         const inDatetime = document.getElementById('input-datetime');
@@ -147,22 +153,41 @@
         let isEditMode = false;
         let uploadedImageObj = null;
 
-        // --- Initialization ---
+        // --- Core Functions ---
+
+        async function fetchAddress(lat, lng) {
+            addressLoader.classList.remove('hidden');
+            try {
+                // Menggunakan Nominatim (OpenStreetMap) untuk Reverse Geocoding
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
+                const data = await response.json();
+                
+                if (data && data.display_name) {
+                    inAddress.value = data.display_name;
+                } else {
+                    inAddress.value = `Lokasi: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                }
+            } catch (error) {
+                console.error("Gagal mendapatkan alamat:", error);
+                inAddress.value = `Koordinat: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            } finally {
+                addressLoader.classList.add('hidden');
+                updateDisplayOverlay();
+            }
+        }
 
         function initMap() {
-            map = L.map('map').setView([-6.200000, 106.816666], 13); // Default Jakarta
+            map = L.map('map').setView([-6.200000, 106.816666], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap'
             }).addTo(map);
             
             marker = L.marker([-6.200000, 106.816666], { draggable: true }).addTo(map);
 
-            // Click map to update coords
             map.on('click', (e) => {
                 updateManualCoords(e.latlng.lat, e.latlng.lng);
             });
 
-            // Drag marker to update coords
             marker.on('dragend', () => {
                 const pos = marker.getLatLng();
                 updateManualCoords(pos.lat, pos.lng);
@@ -174,7 +199,7 @@
             inLng.value = lng.toFixed(6);
             marker.setLatLng([lat, lng]);
             map.panTo([lat, lng]);
-            updateDisplayOverlay();
+            fetchAddress(lat, lng); // Trigger alamat otomatis
         }
 
         async function startCamera() {
@@ -199,11 +224,9 @@
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
             } catch (err) {
-                console.error("Camera Access Denied", err);
+                console.error("Akses kamera ditolak", err);
             }
         }
-
-        // --- Handlers ---
 
         function updateDisplayOverlay() {
             const dateVal = new Date(inDatetime.value);
@@ -216,7 +239,6 @@
             dispCoords.innerText = `LAT: ${inLat.value} | LNG: ${inLng.value}`;
         }
 
-        // Handle File Upload
         inputFile.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -234,7 +256,6 @@
                 modeIndicator.innerText = "Mode: Edit Foto";
                 modeIndicator.className = "bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold uppercase";
                 
-                // Matikan kamera untuk hemat baterai
                 if (video.srcObject) {
                     video.srcObject.getTracks().forEach(track => track.stop());
                 }
@@ -242,7 +263,6 @@
             reader.readAsDataURL(file);
         });
 
-        // Set default values for inputs
         function setDefaultInputs() {
             const now = new Date();
             const year = now.getFullYear();
@@ -252,7 +272,6 @@
             const minutes = String(now.getMinutes()).padStart(2, '0');
             
             inDatetime.value = `${year}-${month}-${day}T${hours}:${minutes}`;
-            inAddress.value = "Menunggu GPS...";
 
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((pos) => {
@@ -260,20 +279,19 @@
                     const lng = pos.coords.longitude;
                     inLat.value = lat.toFixed(6);
                     inLng.value = lng.toFixed(6);
-                    inAddress.value = `Lokasi GPS Aktif (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
                     marker.setLatLng([lat, lng]);
                     map.setView([lat, lng], 15);
+                    fetchAddress(lat, lng); // Trigger alamat otomatis saat GPS didapat
+                }, () => {
+                    inAddress.value = "GPS tidak aktif. Pilih di peta.";
                     updateDisplayOverlay();
                 });
             }
         }
 
-        // Live binding for inputs
         [inDatetime, inAddress, inLat, inLng].forEach(el => {
             el.addEventListener('input', updateDisplayOverlay);
         });
-
-        // --- Core Capture Logic ---
 
         btnCapture.addEventListener('click', () => {
             let sourceWidth, sourceHeight;
@@ -289,23 +307,19 @@
             canvas.width = sourceWidth;
             canvas.height = sourceHeight;
 
-            // 1. Draw Background
             if (isEditMode && uploadedImageObj) {
                 ctx.drawImage(uploadedImageObj, 0, 0);
             } else {
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             }
 
-            // 2. Overlay Metadata
             const padding = canvas.width * 0.05;
             const fontSize = Math.floor(canvas.width * 0.035);
             
-            // Bar Background
             ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
             const boxHeight = fontSize * 4.5;
             ctx.fillRect(0, canvas.height - boxHeight - padding, canvas.width, boxHeight + padding);
 
-            // Text Rendering
             ctx.fillStyle = "white";
             ctx.textAlign = "left";
             ctx.shadowColor = "black";
@@ -321,14 +335,19 @@
             ctx.fillText(line1, padding, canvas.height - (fontSize * 3.2) - padding);
             
             ctx.font = `${fontSize * 0.85}px sans-serif`;
-            ctx.fillText(line2, padding, canvas.height - (fontSize * 1.8) - padding);
+            // Wrap text sederhana untuk alamat panjang
+            const maxAddrWidth = canvas.width - (padding * 2);
+            if (ctx.measureText(line2).width > maxAddrWidth) {
+                ctx.fillText(line2.substring(0, 60) + "...", padding, canvas.height - (fontSize * 1.8) - padding);
+            } else {
+                ctx.fillText(line2, padding, canvas.height - (fontSize * 1.8) - padding);
+            }
             
             ctx.font = `${fontSize * 0.7}px sans-serif`;
             ctx.globalAlpha = 0.8;
             ctx.fillText(line3, padding, canvas.height - (fontSize * 0.6) - padding);
             ctx.globalAlpha = 1.0;
 
-            // 3. Display Result
             const dataUrl = canvas.toDataURL('image/png');
             const resImg = document.createElement('img');
             resImg.src = dataUrl;
@@ -342,13 +361,11 @@
             document.getElementById('modal-result').classList.remove('hidden');
         });
 
-        // Switch camera
         btnSwitch.addEventListener('click', () => {
             useFrontCamera = !useFrontCamera;
             startCamera();
         });
 
-        // Close Modal
         document.getElementById('btn-close-modal').addEventListener('click', () => {
             document.getElementById('modal-result').classList.add('hidden');
         });
@@ -357,7 +374,6 @@
             initMap();
             setDefaultInputs();
             startCamera();
-            updateDisplayOverlay();
         };
     </script>
 </body>
