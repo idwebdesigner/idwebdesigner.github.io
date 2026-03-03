@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timestamp Camera Pro</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map { height: 250px; border-radius: 0.75rem; }
+        .video-container { position: relative; overflow: hidden; border-radius: 1rem; background: #000; transition: all 0.3s ease; }
+        #canvas-hidden { display: none; }
+        .preview-image { max-width: 100%; border-radius: 0.75rem; border: 4px solid white; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .custom-input { @apply w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-2; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans pb-32">
+
+    <div class="max-w-md mx-auto p-4">
+        <!-- Header -->
+        <header class="flex items-center justify-between mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-indigo-700">Timestamp Pro</h1>
+                <p class="text-sm text-slate-500">Kamera & Editor Lokasi</p>
+            </div>
+            <div id="mode-indicator" class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase">
+                Mode: Live
+            </div>
+        </header>
+
+        <!-- Main Preview Area -->
+        <div id="preview-wrapper" class="video-container shadow-xl mb-6 aspect-[3/4] flex items-center justify-center">
+            <video id="video" autoplay playsinline class="w-full h-full object-cover"></video>
+            <img id="image-preview" class="hidden w-full h-full object-contain bg-slate-200" alt="Preview Unggahan" />
+            
+            <!-- Floating Overlay View (Preview Only) -->
+            <div class="absolute bottom-4 left-4 text-white text-[10px] leading-tight pointer-events-none drop-shadow-md bg-black/20 p-2 rounded">
+                <div id="display-time" class="font-bold">Memuat waktu...</div>
+                <div id="display-address">Mencari lokasi...</div>
+                <div id="display-coords" class="opacity-80 text-[8px]"></div>
+            </div>
+        </div>
+
+        <!-- Manual Edit Controls -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6">
+            <h2 class="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit Metadata Timestamp
+            </h2>
+            
+            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Waktu & Tanggal</label>
+            <input type="datetime-local" id="input-datetime" class="custom-input px-3 py-2 w-full mb-3" />
+
+            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Alamat / Label Lokasi</label>
+            <input type="text" id="input-address" placeholder="Masukkan alamat manual..." class="custom-input mb-3" />
+
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Latitude</label>
+                    <input type="number" id="input-lat" step="any" class="custom-input" />
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Longitude</label>
+                    <input type="number" id="input-lng" step="any" class="custom-input" />
+                </div>
+            </div>
+            <p class="text-[10px] text-slate-400 italic mt-1">*Klik pada peta di bawah untuk mengubah koordinat dengan cepat.</p>
+        </div>
+
+        <!-- Map View -->
+        <div class="mb-6">
+            <h2 class="text-sm font-semibold text-slate-600 mb-2 px-1">Pilih Lokasi di Peta</h2>
+            <div id="map" class="shadow-inner border border-slate-200"></div>
+        </div>
+
+        <!-- Bottom Navigation / Controls -->
+        <div class="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-200 p-6 flex justify-around items-center z-40">
+            <!-- Switch Camera -->
+            <button id="btn-switch" class="p-3 text-slate-500 hover:text-indigo-600 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+            </button>
+            
+            <!-- Main Capture Button -->
+            <button id="btn-capture" class="bg-indigo-600 text-white p-5 rounded-full shadow-lg shadow-indigo-200 hover:scale-105 active:scale-95 transition transform">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+            </button>
+
+            <!-- Upload Gallery -->
+            <label for="input-file" class="p-3 text-slate-500 hover:text-indigo-600 cursor-pointer transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <input type="file" id="input-file" accept="image/*" class="hidden" />
+            </label>
+        </div>
+
+        <!-- Result Modal -->
+        <div id="modal-result" class="fixed inset-0 bg-black/95 z-50 hidden flex flex-col items-center justify-center p-6 text-white">
+            <div class="w-full max-w-sm flex flex-col items-center">
+                <h3 class="text-xl font-bold mb-4">Pratinjau Foto</h3>
+                <div id="captured-container" class="mb-6 w-full flex justify-center"></div>
+                <div class="flex gap-4 w-full">
+                    <button id="btn-close-modal" class="flex-1 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-bold transition">Batal</button>
+                    <a id="btn-download" href="#" download="timestamp_pro.png" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold text-center transition">Simpan Foto</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="canvas-hidden"></canvas>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // DOM Elements
+        const video = document.getElementById('video');
+        const imgPreview = document.getElementById('image-preview');
+        const canvas = document.getElementById('canvas-hidden');
+        const ctx = canvas.getContext('2d');
+        const btnCapture = document.getElementById('btn-capture');
+        const btnSwitch = document.getElementById('btn-switch');
+        const inputFile = document.getElementById('input-file');
+        const modeIndicator = document.getElementById('mode-indicator');
+        
+        // Input Controls
+        const inDatetime = document.getElementById('input-datetime');
+        const inAddress = document.getElementById('input-address');
+        const inLat = document.getElementById('input-lat');
+        const inLng = document.getElementById('input-lng');
+
+        // Display Labels
+        const dispTime = document.getElementById('display-time');
+        const dispAddr = document.getElementById('display-address');
+        const dispCoords = document.getElementById('display-coords');
+
+        let map, marker;
+        let useFrontCamera = false;
+        let isEditMode = false;
+        let uploadedImageObj = null;
+
+        // --- Initialization ---
+
+        function initMap() {
+            map = L.map('map').setView([-6.200000, 106.816666], 13); // Default Jakarta
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+            
+            marker = L.marker([-6.200000, 106.816666], { draggable: true }).addTo(map);
+
+            // Click map to update coords
+            map.on('click', (e) => {
+                updateManualCoords(e.latlng.lat, e.latlng.lng);
+            });
+
+            // Drag marker to update coords
+            marker.on('dragend', () => {
+                const pos = marker.getLatLng();
+                updateManualCoords(pos.lat, pos.lng);
+            });
+        }
+
+        function updateManualCoords(lat, lng) {
+            inLat.value = lat.toFixed(6);
+            inLng.value = lng.toFixed(6);
+            marker.setLatLng([lat, lng]);
+            map.panTo([lat, lng]);
+            updateDisplayOverlay();
+        }
+
+        async function startCamera() {
+            isEditMode = false;
+            imgPreview.classList.add('hidden');
+            video.classList.remove('hidden');
+            modeIndicator.innerText = "Mode: Live";
+            modeIndicator.className = "bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase";
+
+            const constraints = {
+                video: {
+                    facingMode: useFrontCamera ? "user" : "environment",
+                    width: { ideal: 1080 },
+                    height: { ideal: 1440 }
+                }
+            };
+
+            try {
+                if (video.srcObject) {
+                    video.srcObject.getTracks().forEach(track => track.stop());
+                }
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+            } catch (err) {
+                console.error("Camera Access Denied", err);
+            }
+        }
+
+        // --- Handlers ---
+
+        function updateDisplayOverlay() {
+            const dateVal = new Date(inDatetime.value);
+            const formattedDate = isNaN(dateVal) ? "Waktu tidak valid" : 
+                dateVal.toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'long', year: 'numeric' }) + 
+                " " + dateVal.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+            dispTime.innerText = formattedDate;
+            dispAddr.innerText = inAddress.value || "Alamat belum diisi";
+            dispCoords.innerText = `LAT: ${inLat.value} | LNG: ${inLng.value}`;
+        }
+
+        // Handle File Upload
+        inputFile.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                isEditMode = true;
+                video.classList.add('hidden');
+                imgPreview.classList.remove('hidden');
+                imgPreview.src = event.target.result;
+                
+                uploadedImageObj = new Image();
+                uploadedImageObj.src = event.target.result;
+
+                modeIndicator.innerText = "Mode: Edit Foto";
+                modeIndicator.className = "bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold uppercase";
+                
+                // Matikan kamera untuk hemat baterai
+                if (video.srcObject) {
+                    video.srcObject.getTracks().forEach(track => track.stop());
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Set default values for inputs
+        function setDefaultInputs() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            
+            inDatetime.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            inAddress.value = "Menunggu GPS...";
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    inLat.value = lat.toFixed(6);
+                    inLng.value = lng.toFixed(6);
+                    inAddress.value = `Lokasi GPS Aktif (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+                    marker.setLatLng([lat, lng]);
+                    map.setView([lat, lng], 15);
+                    updateDisplayOverlay();
+                });
+            }
+        }
+
+        // Live binding for inputs
+        [inDatetime, inAddress, inLat, inLng].forEach(el => {
+            el.addEventListener('input', updateDisplayOverlay);
+        });
+
+        // --- Core Capture Logic ---
+
+        btnCapture.addEventListener('click', () => {
+            let sourceWidth, sourceHeight;
+            
+            if (isEditMode && uploadedImageObj) {
+                sourceWidth = uploadedImageObj.width;
+                sourceHeight = uploadedImageObj.height;
+            } else {
+                sourceWidth = video.videoWidth;
+                sourceHeight = video.videoHeight;
+            }
+
+            canvas.width = sourceWidth;
+            canvas.height = sourceHeight;
+
+            // 1. Draw Background
+            if (isEditMode && uploadedImageObj) {
+                ctx.drawImage(uploadedImageObj, 0, 0);
+            } else {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            }
+
+            // 2. Overlay Metadata
+            const padding = canvas.width * 0.05;
+            const fontSize = Math.floor(canvas.width * 0.035);
+            
+            // Bar Background
+            ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+            const boxHeight = fontSize * 4.5;
+            ctx.fillRect(0, canvas.height - boxHeight - padding, canvas.width, boxHeight + padding);
+
+            // Text Rendering
+            ctx.fillStyle = "white";
+            ctx.textAlign = "left";
+            ctx.shadowColor = "black";
+            ctx.shadowBlur = 4;
+
+            const dateVal = new Date(inDatetime.value);
+            const line1 = dateVal.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) + 
+                          " " + dateVal.toLocaleTimeString('id-ID');
+            const line2 = inAddress.value;
+            const line3 = `Koordinat: ${inLat.value}, ${inLng.value}`;
+
+            ctx.font = `bold ${fontSize}px sans-serif`;
+            ctx.fillText(line1, padding, canvas.height - (fontSize * 3.2) - padding);
+            
+            ctx.font = `${fontSize * 0.85}px sans-serif`;
+            ctx.fillText(line2, padding, canvas.height - (fontSize * 1.8) - padding);
+            
+            ctx.font = `${fontSize * 0.7}px sans-serif`;
+            ctx.globalAlpha = 0.8;
+            ctx.fillText(line3, padding, canvas.height - (fontSize * 0.6) - padding);
+            ctx.globalAlpha = 1.0;
+
+            // 3. Display Result
+            const dataUrl = canvas.toDataURL('image/png');
+            const resImg = document.createElement('img');
+            resImg.src = dataUrl;
+            resImg.className = "preview-image";
+            
+            const container = document.getElementById('captured-container');
+            container.innerHTML = '';
+            container.appendChild(resImg);
+
+            document.getElementById('btn-download').href = dataUrl;
+            document.getElementById('modal-result').classList.remove('hidden');
+        });
+
+        // Switch camera
+        btnSwitch.addEventListener('click', () => {
+            useFrontCamera = !useFrontCamera;
+            startCamera();
+        });
+
+        // Close Modal
+        document.getElementById('btn-close-modal').addEventListener('click', () => {
+            document.getElementById('modal-result').classList.add('hidden');
+        });
+
+        window.onload = () => {
+            initMap();
+            setDefaultInputs();
+            startCamera();
+            updateDisplayOverlay();
+        };
+    </script>
+</body>
+</html>
